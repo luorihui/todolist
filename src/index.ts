@@ -3,6 +3,8 @@ import express, { Express, Request, Response } from 'express';
 import dotenv from 'dotenv';
 import Database from './config/database';
 import { ObjectId } from 'mongodb';
+import cors from 'cors';
+import { todo } from 'node:test';
 
 /*
  * Load up and parse configuration details from
@@ -18,6 +20,11 @@ dotenv.config();
  */
 const app: Express = express();
 const port = process.env.PORT || 3000;
+app.use(cors({
+  origin: 'http://localhost:3000',
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  allowedHeaders: ['Content-Type']
+}));
 app.use(express.json());
 
 const TODOS_COLLECTION = 'todos';
@@ -52,14 +59,14 @@ app.get('/todos/:id', async (req: Request, res: Response) => {
   const id = req.params.id;
   try {
     const collection = Database.getDb().collection(TODOS_COLLECTION);
-    const todo = await collection.findOne({ 
-      _id: new ObjectId(id) 
+    const todo = await collection.findOne({
+      _id: new ObjectId(id),
     });
-    
+
     if (!todo) {
       return res.status(404).json({ error: 'Todo not found' });
     }
-    
+
     res.json(todo);
   } catch (error) {
     console.error('Error fetching todo:', error);
@@ -71,19 +78,25 @@ app.get('/todos/:id', async (req: Request, res: Response) => {
  * Create a todo
  */
 app.post('/todos', async (req: Request, res: Response) => {
-  console.log(`shortName=${req.body.shortName}`);
+  console.log(`name=${req.body.name}`);
   console.log(`description=${req.body.description}`);
+  console.log(`priority=${req.body.priority}`);
 
-  let respPayload = { status: 'failure', id: '' };
+  let respPayload : { status: string, todo: any | null } = { status: 'failure', todo: null };
   try {
     const collection = Database.getDb().collection(TODOS_COLLECTION);
     const result = await collection.insertOne({
-      shortName: req.body.shortName,
+      name: req.body.name,
+      priority: req.body.priority,
       description: req.body.description,
+      status: req.body.status,
       createdAt: new Date(),
     });
     console.log('Inserted document:', result);
-    respPayload = { status: 'success', id: result?.insertedId?.toString() };
+    const todo = await collection.findOne({
+      _id: result?.insertedId,
+    });
+    respPayload = { status: 'success', todo: todo };
   } catch (error) {
     console.error('Error inserting document:', error);
   }
@@ -97,14 +110,17 @@ app.put('/todos/:id', async (req: Request, res: Response) => {
   const id = req.params.id;
   try {
     const collection = Database.getDb().collection(TODOS_COLLECTION);
-    
+
     const result = await collection.findOneAndUpdate(
       { _id: new ObjectId(id) },
-      { $set: {
-          shortName: req.body.shortName,
+      {
+        $set: {
+          name: req.body.name,
           description: req.body.description,
-          updatedAt: new Date()
-        }
+          priority: req.body.priority,
+          status: req.body.status,
+          updatedAt: new Date(),
+        },
       },
       { returnDocument: 'after' }
     );
